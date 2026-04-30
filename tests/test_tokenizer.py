@@ -462,3 +462,6 @@ def _encode(tokenizer, text):
     for just this function. We set the memory limit to 1MB.
     """
     return tokenizer.encode(text)
+
+
+test_address_matches_tiktoken()
