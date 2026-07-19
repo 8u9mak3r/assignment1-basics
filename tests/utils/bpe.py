@@ -3,7 +3,7 @@ from __future__ import annotations
 import regex as re
 import os, json
 from collections import Counter
-from .common import gpt2_bytes_to_unicode
+from ..common import gpt2_bytes_to_unicode
 from collections import defaultdict
 import multiprocessing
 from jaxtyping import Bool
@@ -291,8 +291,8 @@ class Tokenizer:
         vocab: dict[int, bytes] = {}
         merges: list[tuple[bytes, bytes]] = []
     
+        # special tokens and ASCII chars added to vocablist
         for i, token in enumerate(special_tokens): vocab[i] = token.encode("utf-8")
-      
         for _, token in bytes_to_unicode_map.items(): vocab[len(vocab)] = token.encode("utf-8")
         
     

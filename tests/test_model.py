@@ -23,8 +23,8 @@ def test_linear(numpy_snapshot, ts_state_dict, in_embeddings, d_model, d_ff):
     output = run_linear(
         d_in=d_model,
         d_out=d_ff,
-        weights=w1_weight,
-        in_features=in_embeddings,
+        weights=w1_weight.to("cuda"),
+        in_features=in_embeddings.to("cuda"),
     )
     numpy_snapshot.assert_match(output)
 
@@ -34,8 +34,8 @@ def test_embedding(numpy_snapshot, ts_state_dict, in_indices, vocab_size, d_mode
     output = run_embedding(
         vocab_size=vocab_size,
         d_model=d_model,
-        weights=embedding_weight,
-        token_ids=in_indices,
+        weights=embedding_weight.to("cuda"),
+        token_ids=in_indices.to("cuda"),
     )
     numpy_snapshot.assert_match(output)
 
@@ -46,16 +46,16 @@ def test_swiglu(numpy_snapshot, ts_state_dict, in_embeddings, d_model, d_ff):
     actual_output = run_swiglu(
         d_model=d_model,
         d_ff=d_ff,
-        w1_weight=w1_weight,
-        w2_weight=w2_weight,
-        w3_weight=w3_weight,
-        in_features=in_embeddings,
+        w1_weight=w1_weight.to("cuda"),
+        w2_weight=w2_weight.to("cuda"),
+        w3_weight=w3_weight.to("cuda"),
+        in_features=in_embeddings.to("cuda"),
     )
     numpy_snapshot.assert_match(actual_output, atol=1e-5)
 
 
 def test_scaled_dot_product_attention(numpy_snapshot, q, k, v, mask):
-    actual_output = run_scaled_dot_product_attention(Q=q, K=k, V=v, mask=mask)
+    actual_output = run_scaled_dot_product_attention(Q=q.to("cuda"), K=k.to("cuda"), V=v.to("cuda"), mask=mask.to("cuda"))
     numpy_snapshot.assert_match(
         actual_output,
         atol=1e-5,
@@ -67,7 +67,7 @@ def test_4d_scaled_dot_product_attention(numpy_snapshot, q, k, v, mask):
     q, k, v = (rearrange(x, "(batch head) seq d -> batch head seq d", head=2) for x in (q, k, v))
     mask = rearrange(mask, "(batch head) query key -> batch head query key", head=2)
 
-    actual_output = run_scaled_dot_product_attention(Q=q, K=k, V=v, mask=mask)
+    actual_output = run_scaled_dot_product_attention(Q=q.to("cuda"), K=k.to("cuda"), V=v.to("cuda"), mask=mask.to("cuda"))
     numpy_snapshot.assert_match(
         actual_output,
         atol=1e-5,
@@ -82,11 +82,11 @@ def test_multihead_self_attention(numpy_snapshot, in_embeddings, d_model, n_head
     actual_output = run_multihead_self_attention(
         d_model=d_model,
         num_heads=n_heads,
-        q_proj_weight=q_proj_weight,
-        k_proj_weight=k_proj_weight,
-        v_proj_weight=v_proj_weight,
-        o_proj_weight=o_proj_weight,
-        in_features=in_embeddings,
+        q_proj_weight=q_proj_weight.to("cuda"),
+        k_proj_weight=k_proj_weight.to("cuda"),
+        v_proj_weight=v_proj_weight.to("cuda"),
+        o_proj_weight=o_proj_weight.to("cuda"),
+        in_features=in_embeddings.to("cuda"),
     )
     numpy_snapshot.assert_match(actual_output, atol=1e-5)
 
@@ -104,12 +104,12 @@ def test_multihead_self_attention_with_rope(
         num_heads=n_heads,
         max_seq_len=n_keys,
         theta=theta,
-        q_proj_weight=q_proj_weight,
-        k_proj_weight=k_proj_weight,
-        v_proj_weight=v_proj_weight,
-        o_proj_weight=o_proj_weight,
-        in_features=in_embeddings,
-        token_positions=pos_ids,
+        q_proj_weight=q_proj_weight.to("cuda"),
+        k_proj_weight=k_proj_weight.to("cuda"),
+        v_proj_weight=v_proj_weight.to("cuda"),
+        o_proj_weight=o_proj_weight.to("cuda"),
+        in_features=in_embeddings.to("cuda"),
+        token_positions=pos_ids.to("cuda"),
     )
     numpy_snapshot.assert_match(actual_output, atol=1e-5)
 
@@ -118,6 +118,7 @@ def test_transformer_lm(
     numpy_snapshot, vocab_size, n_keys, d_model, n_layers, n_heads, d_ff, theta, ts_state_dict, in_indices
 ):
     state_dict, _ = ts_state_dict
+    state_dict = {k: v.to("cuda") for k, v in state_dict.items()}
 
     actual_output = run_transformer_lm(
         vocab_size=vocab_size,
@@ -128,7 +129,7 @@ def test_transformer_lm(
         d_ff=d_ff,
         rope_theta=theta,
         weights=state_dict,
-        in_indices=in_indices,
+        in_indices=in_indices.to("cuda"),
     )
     numpy_snapshot.assert_match(actual_output, atol=1e-4, rtol=1e-2)
 
@@ -137,6 +138,7 @@ def test_transformer_lm_truncated_input(
     numpy_snapshot, vocab_size, n_keys, d_model, n_layers, n_heads, d_ff, theta, ts_state_dict, in_indices
 ):
     in_indices_truncated = in_indices[..., : in_indices.shape[-1] // 2]
+    state_dict = {k: v.to("cuda") for k, v in ts_state_dict[0].items()}
     truncated_actual_output = run_transformer_lm(
         vocab_size=vocab_size,
         context_length=n_keys,
@@ -145,8 +147,8 @@ def test_transformer_lm_truncated_input(
         num_heads=n_heads,
         d_ff=d_ff,
         rope_theta=theta,
-        weights=ts_state_dict[0],
-        in_indices=in_indices_truncated,
+        weights=state_dict,
+        in_indices=in_indices_truncated.to("cuda"),
     )
 
     numpy_snapshot.assert_match(
@@ -156,7 +158,7 @@ def test_transformer_lm_truncated_input(
 
 
 def test_transformer_block(numpy_snapshot, ts_state_dict, in_embeddings, d_model, n_heads, d_ff, n_keys, theta):
-    block_weights = {k.replace("layers.0.", ""): v for k, v in ts_state_dict[0].items() if "layers.0." in k}
+    block_weights = {k.replace("layers.0.", ""): v.to("cuda") for k, v in ts_state_dict[0].items() if "layers.0." in k}
 
     actual_output = run_transformer_block(
         d_model=d_model,
@@ -165,7 +167,7 @@ def test_transformer_block(numpy_snapshot, ts_state_dict, in_embeddings, d_model
         max_seq_len=n_keys,
         theta=theta,
         weights=block_weights,
-        in_features=in_embeddings,
+        in_features=in_embeddings.to("cuda"),
     )
     numpy_snapshot.assert_match(
         actual_output,
@@ -178,14 +180,14 @@ def test_rmsnorm(numpy_snapshot, ts_state_dict, in_embeddings):
     reference_weights = state_dict["layers.1.ln1.weight"]
     d_model = reference_weights.shape[0]
 
-    actual_output = run_rmsnorm(d_model=d_model, eps=1e-5, weights=reference_weights, in_features=in_embeddings)
+    actual_output = run_rmsnorm(d_model=d_model, eps=1e-5, weights=reference_weights.to("cuda"), in_features=in_embeddings.to("cuda"))
 
     numpy_snapshot.assert_match(actual_output, atol=1e-4)
 
 
 def test_rope(numpy_snapshot, in_embeddings, d_model, theta, n_queries, pos_ids):
     output = run_rope(
-        d_model, theta=theta, max_seq_len=n_queries, in_query_or_key=in_embeddings, token_positions=pos_ids
+        d_model, theta=theta, max_seq_len=n_queries, in_query_or_key=in_embeddings.to("cuda"), token_positions=pos_ids.to("cuda")
     )
     numpy_snapshot.assert_match(output, atol=1e-5)
 
